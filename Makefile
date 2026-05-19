@@ -57,6 +57,15 @@ COMMA := ,
 file_with_size = $(WHITE)$(1) $(2)$(YELLOW)($(WHITE)$$(du -ah "$(1)" 2>/dev/null |cut -f1)iB$(YELLOW))
 step_duration = $$($(DATE_CMD) -d @$$(expr $$($(DATE_CMD) +%s 2>/dev/null || echo "0") - $(1) 2>/dev/null) -u +%Mm:%Ss 2>/dev/null |sed 's/^00m://' || echo 'unk')
 
+# Don't try loading localized messages for anything.
+undefine LANG
+undefine LANGUAGE
+undefine LC_CTYPE
+undefine LC_MESSAGES
+undefine LC_ALL
+
+SHELL := /bin/bash
+.SHELLFLAGS := --norc -o pipefail -e -c
 
 override BTOP_VERSION := $(shell head -n100 src/btop.cpp 2>/dev/null | grep "Version =" | cut -f2 -d"\"" || echo " unknown")
 override TIMESTAMP := $(shell date +%s 2>/dev/null || echo "0")
@@ -122,10 +131,7 @@ ifeq ($(DEBUG),true)
 endif
 
 #? Any flags added to TESTFLAGS must not contain whitespace for the testing to work
-override TESTFLAGS := -fexceptions -fstack-clash-protection -fcf-protection
-ifneq ($(PLATFORM) $(ARCH),macos arm64)
-	override TESTFLAGS += -fstack-protector
-endif
+override TESTFLAGS :=
 
 ifeq ($(STATIC),true)
 	ifeq ($(CXX_IS_CLANG),true)
@@ -167,7 +173,7 @@ else ifeq ($(PLATFORM_LC),$(filter $(PLATFORM_LC),freebsd midnightbsd))
 		override ADDFLAGS += -lelf -Wl,--eh-frame-hdr
 	endif
 
- 	ifeq ($(CXX_IS_CLANG),false)
+	ifeq ($(CXX_IS_CLANG),false)
 		override ADDFLAGS += -lstdc++ -Wl,rpath=/usr/local/lib/gcc$(CXX_VERSION_MAJOR)
 	endif
 	export MAKE = gmake
@@ -175,7 +181,7 @@ else ifeq ($(PLATFORM_LC),macos)
 	PLATFORM_DIR := osx
 	THREADS	:= $(shell sysctl -n hw.ncpu || echo 1)
 	SU_GROUP := wheel
-	override ADDFLAGS += -Wno-format-truncation -framework IOKit -framework CoreFoundation 
+	override ADDFLAGS += -Wno-format-truncation -framework IOKit -framework CoreFoundation
 	ifeq ($(ARCH)$(GPU_SUPPORT),arm64true)
 	  override ADDFLAGS += -lIOReport
 	endif
@@ -231,10 +237,11 @@ override GOODFLAGS := $(foreach flag,$(TESTFLAGS),$(strip $(shell echo "int main
 #? Flags, Libraries and Includes
 override REQFLAGS   := -std=c++23
 WARNFLAGS			:= -Wall -Wextra -pedantic
-OPTFLAGS			:= -O2 $(LTO)
-LDCXXFLAGS			:= -pthread -DFMT_HEADER_ONLY -D_GLIBCXX_ASSERTIONS -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG -D_FILE_OFFSET_BITS=64 $(GOODFLAGS) $(ADDFLAGS)
+OPTFLAGS			:= -O2 -m{arch,tune}=native -f{gcse-after-reload,message-length=0,cf-protection=none} -fno-{plt,stack-protector,stack-clash-protection,semantic-interposition,math-errno,align-jumps,align-labels,align-loops,prefetch-loop-arrays} $(LTO)
+LDCXXFLAGS			:= -pthread -DFMT_HEADER_ONLY $(GOODFLAGS) $(ADDFLAGS)
 override CXXFLAGS	+= $(REQFLAGS) $(LDCXXFLAGS) $(OPTFLAGS) $(WARNFLAGS)
-override LDFLAGS	+= $(LDCXXFLAGS) $(OPTFLAGS) $(WARNFLAGS)
+override CFLAGS	        := -pthread $(OPTFLAGS) $(WARNFLAGS)
+override LDFLAGS	+= $(LDCXXFLAGS) $(OPTFLAGS) $(WARNFLAGS) -fuse-ld=lld -Wl,--compress-debug-sections=zstd,-O2,--gc-sections
 INC					:= $(foreach incdir,$(INCDIRS),-isystem $(incdir)) -I$(SRCDIR) -I$(BUILDDIR)
 SU_USER				:= root
 
@@ -473,10 +480,20 @@ $(BUILDDIR)/%.c.o: $(SRCDIR)/$(PLATFORM_DIR)/intel_gpu_top/%.c | directories
 	@sleep 0.3 2>/dev/null || true
 	@TSTAMP=$$(date +%s 2>/dev/null || echo "0")
 	@$(QUIET) || $(call white,Compiling $<)
-	@$(VERBOSE) || printf "$(CC) $(INC) -c -o $@ $<\n"
-	@$(CC) $(INC) -w -c -o $@ $< || exit 1
+	@$(VERBOSE) || printf "$(CC) $(CFLAGS) $(INC) -c -o $@ $<\n"
+	@$(CC) $(CFLAGS) $(INC) -w -c -o $@ $< || exit 1
 	@$(call green,$$($(PROGRESS))%$(call CUR_LEFT,10)$(call CUR_RIGHT,5)-> $(call file_with_size,$@,$(call CUR_LEFT,100)$(call CUR_RIGHT,38)) $(GREEN)($(WHITE)$(call step_duration,$$TSTAMP)$(GREEN)))
+
+clean_install :
+	${MAKE} clean
+	${MAKE} -j$$(nproc) VERBOSE=true QUIET=false CXX=g++-14 CC=gcc-14
+	sudo ${MAKE} install
+	sudo ${MAKE} setuid
 
 
 #? Non-File Targets
-.PHONY: all config.h msg help pre
+.PHONY: all config.h msg help pre clean install clean_install
+
+# Local Variables:
+# compile-command: "/bin/time make -C ~/src/btop clean_install"
+# End:
