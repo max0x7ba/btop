@@ -486,15 +486,21 @@ $(BUILDDIR)/%.c.o: $(SRCDIR)/$(PLATFORM_DIR)/intel_gpu_top/%.c | directories
 	@$(CC) $(CFLAGS) $(INC) -w -c -o $@ $< || exit 1
 	@$(call green,$$($(PROGRESS))%$(call CUR_LEFT,10)$(call CUR_RIGHT,5)-> $(call file_with_size,$@,$(call CUR_LEFT,100)$(call CUR_RIGHT,38)) $(GREEN)($(WHITE)$(call step_duration,$$TSTAMP)$(GREEN)))
 
+
+make_vars := INTEL_GPU_SUPPORT=false VERBOSE=true QUIET=false CXX=g++-14 CC=gcc-14
+
 clean_install :
 	${MAKE} clean
-	${MAKE} -j$$(nproc) INTEL_GPU_SUPPORT=false VERBOSE=true QUIET=false CXX=g++-14 CC=gcc-14
+	${MAKE} -j$$(nproc) ${make_vars}
 	sudo ${MAKE} install
 	sudo ${MAKE} setuid
 
+bear :
+	bear -- ${MAKE} -B -j$$(nproc) ${make_vars}
+
 
 #? Non-File Targets
-.PHONY: all config.h msg help pre clean install clean_install
+.PHONY: all config.h msg help pre clean install clean_install bear
 
 # Local Variables:
 # compile-command: "/bin/time make -C ~/src/btop clean_install"
