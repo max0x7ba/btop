@@ -234,12 +234,14 @@ OBJEXT		:= o
 #? Filter out unsupported compiler flags
 override GOODFLAGS := $(foreach flag,$(TESTFLAGS),$(strip $(shell echo "int main() {}" | $(CXX) -o /dev/null $(flag) -x c++ - >/dev/null 2>&1 && echo $(flag) || true)))
 
+INTEL_GPU_SUPPORT.true := -DINTEL_GPU_SUPPORT=1
+
 #? Flags, Libraries and Includes
 override REQFLAGS   := -std=c++23
 WARNFLAGS			:= -Wall -Wextra -pedantic
 OPTFLAGS			:= -O2 -m{arch,tune}=native -f{gcse-after-reload,message-length=0,cf-protection=none} -fno-{plt,stack-protector,stack-clash-protection,semantic-interposition,math-errno,align-jumps,align-labels,align-loops,prefetch-loop-arrays} $(LTO)
 LDCXXFLAGS			:= -pthread -DFMT_HEADER_ONLY $(GOODFLAGS) $(ADDFLAGS)
-override CXXFLAGS	+= $(REQFLAGS) $(LDCXXFLAGS) $(OPTFLAGS) $(WARNFLAGS)
+override CXXFLAGS	+= $(REQFLAGS) $(LDCXXFLAGS) $(OPTFLAGS) $(WARNFLAGS) ${INTEL_GPU_SUPPORT.${INTEL_GPU_SUPPORT}}
 override CFLAGS	        := -pthread $(OPTFLAGS) $(WARNFLAGS)
 override LDFLAGS	+= $(LDCXXFLAGS) $(OPTFLAGS) $(WARNFLAGS) -fuse-ld=lld -Wl,--compress-debug-sections=zstd,-O2,--gc-sections
 INC					:= $(foreach incdir,$(INCDIRS),-isystem $(incdir)) -I$(SRCDIR) -I$(BUILDDIR)
@@ -486,7 +488,7 @@ $(BUILDDIR)/%.c.o: $(SRCDIR)/$(PLATFORM_DIR)/intel_gpu_top/%.c | directories
 
 clean_install :
 	${MAKE} clean
-	${MAKE} -j$$(nproc) VERBOSE=true QUIET=false CXX=g++-14 CC=gcc-14
+	${MAKE} -j$$(nproc) INTEL_GPU_SUPPORT=false VERBOSE=true QUIET=false CXX=g++-14 CC=gcc-14
 	sudo ${MAKE} install
 	sudo ${MAKE} setuid
 

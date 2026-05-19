@@ -66,9 +66,11 @@ tab-size = 4
 	#endif // __clang__
 
 	#define class class_
+#if INTEL_GPU_SUPPORT
 extern "C" {
 	#include "intel_gpu_top/intel_gpu_top.h"
 }
+#endif
 	#undef class
 
 	#if defined(__clang__)
@@ -283,6 +285,7 @@ namespace Gpu {
 	}
 
 
+#if INTEL_GPU_SUPPORT
 	//? Intel data collection
 	namespace Intel {
 		const char* device = "i915";
@@ -401,9 +404,11 @@ namespace Shared {
 			Gpu::Asysfs::init(); //? self-skips when rocm-smi already enumerated devices
 		}
 
+#if INTEL_GPU_SUPPORT
 		if (shown_gpus.contains("intel")) {
 			Gpu::Intel::init();
 		}
+#endif
 
 		if (not Gpu::gpu_names.empty()) {
 			for (auto const& [key, _] : Gpu::gpus[0].gpu_percent)
@@ -1907,6 +1912,7 @@ namespace Gpu {
 		}
 	}
 
+#if INTEL_GPU_SUPPORT
 	namespace Intel {
 		bool init() {
 			if (initialized) return false;
@@ -2025,6 +2031,7 @@ namespace Gpu {
 			return true;
 		}
 	}
+#endif
 
 	namespace Asysfs {
 		//? Read a sysfs node containing a single integer; return fallback on missing/parse error.
@@ -2220,8 +2227,10 @@ namespace Gpu {
 		//* Collect data
 		Nvml::collect<0>(gpus.data()); // raw pointer to vector data, size == Nvml::device_count
 		Rsmi::collect<0>(gpus.data() + Nvml::device_count); // size = Rsmi::device_count
+#if INTEL_GPU_SUPPORT
 		Asysfs::collect<0>(gpus.data() + Nvml::device_count + Rsmi::device_count); // size = Asysfs::device_count
 		Intel::collect<0>(gpus.data() + Nvml::device_count + Rsmi::device_count + Asysfs::device_count); // size = Intel::device_count
+#endif
 
 		//* Calculate average usage
 		long long avg = 0;
