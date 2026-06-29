@@ -297,6 +297,7 @@ namespace Gpu {
 		template <bool is_init> bool collect(gpu_info* gpus_slice);
 		uint32_t device_count = 0;
 	}
+#endif // INTEL_GPU_SUPPORT
 
 	//? AMD sysfs (consumer GPU / iGPU) data collection — fallback when amd-smi/rocm-smi
 	//? cannot enumerate (e.g. APUs without /dev/kfd, or systems without ROCm libs installed).
@@ -321,7 +322,6 @@ namespace Gpu {
 		vector<device_paths> devices;
 	}
 }
-
 #endif // GPU_SUPPORT
 
 namespace Mem {
